@@ -1,3 +1,5 @@
+
+
 OpenFrameworks based machine vision application for tracking a human hand on a contrasting background, and to train a Support Vector Machine (SVM) to classify static hand poses.
 
 This application requires:
