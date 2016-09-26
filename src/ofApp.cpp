@@ -154,7 +154,7 @@ void ofApp::update(){
         }
         
         
-        // assemble and send out feature vector
+        // assemble and send out feature vector to Wekinator for analysis
         
         features[0]=area;
         features[1]=length;
@@ -162,6 +162,9 @@ void ofApp::update(){
         features[3]=hullArea/length;
         features[4]=length/area;
         sendOSC(features);
+        
+        
+        // assemble feature vector for GRT
         
         GRTfeatures[0]=area;
         GRTfeatures[1]=length;
