@@ -2,8 +2,8 @@ OpenFrameworks based machine vision application for tracking a human hand on a c
 
 This application requires:
 
-ofxConvexHull
-ofxCv
+ - ofxConvexHull
+ - ofxCv
 ofxGrt
 ofxGui
 ofx.JSON
