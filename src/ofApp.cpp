@@ -11,7 +11,7 @@ void ofApp::setup(){
 
 	#ifdef _USE_LIVE_VIDEO
         vidGrabber.setVerbose(true);
-        vidGrabber.setup(320,240);
+        vidGrabber.setup(VID_WIDTH,VID_HEIGHT);
 	#else
         vidPlayer.load("fingers.mov");
         vidPlayer.play();
@@ -29,10 +29,10 @@ void ofApp::setup(){
 
     
     //for background subtraction
-    colorImg.allocate(320,240);
-	grayImage.allocate(320,240);
-	grayBg.allocate(320,240);
-	grayDiff.allocate(320,240);
+    colorImg.allocate(VID_WIDTH,VID_HEIGHT);
+	grayImage.allocate(VID_WIDTH,VID_HEIGHT);
+	grayBg.allocate(VID_WIDTH,VID_HEIGHT);
+	grayDiff.allocate(VID_WIDTH,VID_HEIGHT);
 
 	bLearnBakground = true;
 
@@ -54,11 +54,13 @@ void ofApp::setup(){
     GRTfeatures.resize(GRT_FEATURE_NUM);
     
     //set the default classifier
+    /*
     ANBC naiveBayes;
     naiveBayes.enableNullRejection( false );
     naiveBayes.setNullRejectionCoeff( 3 );
     pipeline.setClassifier( naiveBayes );
-
+    */
+    
     GRT::SVM svm;
     svm.enableNullRejection( false );
     svm.setNullRejectionCoeff( 3 );
