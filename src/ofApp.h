@@ -16,8 +16,8 @@
 #define _USE_LIVE_VIDEO		// uncomment this to use a live camera
 								// otherwise, we'll use a movie file
 
-#define VID_WIDTH 160
-#define VID_HEIGHT 120
+#define VID_WIDTH 320
+#define VID_HEIGHT 240
 #define VID_SPACE  20
 
 //const float  VID_WIDTH  = 320;
