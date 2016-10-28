@@ -11,6 +11,7 @@ This application requires the following addons:
  - ofx.JSON
  - ofxOpenCv
  - ofxOSC
+ - ofxPerPixelSegment
  
 To install them for your environment, Google their names, find their GitHub repository, and clone those repositories in .../of_v0.9.3_osx_release/addons
 

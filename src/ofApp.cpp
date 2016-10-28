@@ -8,16 +8,20 @@ using namespace GRT;
 
 //--------------------------------------------------------------
 void ofApp::setup(){
-
-	#ifdef _USE_LIVE_VIDEO
-        vidGrabber.setVerbose(true);
-        vidGrabber.setup(VID_WIDTH,VID_HEIGHT);
-	#else
-        vidPlayer.load("fingers.mov");
-        vidPlayer.play();
-        vidPlayer.setLoopState(OF_LOOP_NORMAL);
-	#endif
-
+    
+#ifdef _USE_LIVE_VIDEO
+    vidGrabber.setVerbose(true);
+    vidGrabber.setup(VID_WIDTH,VID_HEIGHT);
+#else
+    vidPlayer.load("fingers.mov");
+    vidPlayer.play();
+    vidPlayer.setLoopState(OF_LOOP_NORMAL);
+#endif
+    
+#ifdef _USE_PER_PIXEL_SEGMENTATION
+    segmenter.loadModels();
+#endif
+    
     //for GUI
     gui.setup();
     gui.add(threshold.set("Threshold ", 10, 0, 255));
@@ -26,16 +30,20 @@ void ofApp::setup(){
     
     //for OSC: open an outgoing connection to HOST:PORT
     sender.setup(HOST, PORT);
-
     
+#ifdef _USE_PER_PIXEL_SEGMENTATION
+    colorImg.allocate(VID_WIDTH,VID_HEIGHT);
+    grayDiff.allocate(VID_WIDTH,VID_HEIGHT);
+#else
     //for background subtraction
     colorImg.allocate(VID_WIDTH,VID_HEIGHT);
-	grayImage.allocate(VID_WIDTH,VID_HEIGHT);
-	grayBg.allocate(VID_WIDTH,VID_HEIGHT);
-	grayDiff.allocate(VID_WIDTH,VID_HEIGHT);
-
-	bLearnBakground = true;
-
+    grayImage.allocate(VID_WIDTH,VID_HEIGHT);
+    grayBg.allocate(VID_WIDTH,VID_HEIGHT);
+    grayDiff.allocate(VID_WIDTH,VID_HEIGHT);
+    
+    bLearnBakground = true;
+#endif
+    
     
     
     //for GRT
@@ -55,11 +63,11 @@ void ofApp::setup(){
     
     //set the default classifier
     /*
-    ANBC naiveBayes;
-    naiveBayes.enableNullRejection( false );
-    naiveBayes.setNullRejectionCoeff( 3 );
-    pipeline.setClassifier( naiveBayes );
-    */
+     ANBC naiveBayes;
+     naiveBayes.enableNullRejection( false );
+     naiveBayes.setNullRejectionCoeff( 3 );
+     pipeline.setClassifier( naiveBayes );
+     */
     
     GRT::SVM svm;
     svm.enableNullRejection( false );
@@ -68,11 +76,11 @@ void ofApp::setup(){
     
     
     /* for plotting
-    feature1Plot.setup( 500, 3, "area" );
-    feature1Plot.setDrawGrid( true );
-    feature1Plot.setDrawInfoText( true );
-    feature1Plot.setFont( smallFont );
-    */
+     feature1Plot.setup( 500, 3, "area" );
+     feature1Plot.setDrawGrid( true );
+     feature1Plot.setDrawInfoText( true );
+     feature1Plot.setFont( smallFont );
+     */
 }
 
 void ofApp::sendOSC(float param[FEATURE_NUM]) {
@@ -83,7 +91,7 @@ void ofApp::sendOSC(float param[FEATURE_NUM]) {
     }
     
     sender.sendMessage(m, false);
-
+    
 }
 
 void ofApp::wekinatorControl(int command, int arg) {
@@ -104,48 +112,55 @@ void ofApp::wekinatorControl(int command, int arg) {
             m.addFloatArg(arg);
             sender.sendMessage(m, false);
             break;
-        
+            
     }
     
-
+    
     
 }
 
 //--------------------------------------------------------------
 void ofApp::update(){
-	ofBackground(100,100,100);
-
+    ofBackground(100,100,100);
+    
     bool bNewFrame = false;
-
-	#ifdef _USE_LIVE_VIDEO
-       vidGrabber.update();
+    
+#ifdef _USE_LIVE_VIDEO
+    vidGrabber.update();
 	   bNewFrame = vidGrabber.isFrameNew();
-    #else
-        vidPlayer.update();
-        bNewFrame = vidPlayer.isFrameNew();
-	#endif
-
-	if (bNewFrame){
-
-		#ifdef _USE_LIVE_VIDEO
-            colorImg.setFromPixels(vidGrabber.getPixels());
-	    #else
-            colorImg.setFromPixels(vidPlayer.getPixels());
-        #endif
-
+#else
+    vidPlayer.update();
+    bNewFrame = vidPlayer.isFrameNew();
+#endif
+    
+    if (bNewFrame){
+        
+#ifdef _USE_LIVE_VIDEO
+        colorImg.setFromPixels(vidGrabber.getPixels());
+#else
+        colorImg.setFromPixels(vidPlayer.getPixels());
+#endif
+        
+#ifdef _USE_PER_PIXEL_SEGMENTATION
+        segmenter.detect(colorImg);
+        segmenter.getForegroundMask(foregroundMask);
+        foregroundMask.update();
+        grayDiff.setFromPixels(foregroundMask.getPixels());
+#else
         grayImage = colorImg;
-		if (bLearnBakground == true){
-			grayBg = grayImage;		// the = sign copys the pixels from grayImage into grayBg (operator overloading)
-			bLearnBakground = false;
-		}
-
-		// take the abs value of the difference between background and incoming and then threshold:
-		grayDiff.absDiff(grayBg, grayImage);
-		grayDiff.threshold(threshold);
-
-		// find contours which are between the size of 20 pixels and 1/3 the w*h pixels.
-		// also, find holes is set to true so we will get interior contours as well....
-		contourFinder.findContours(grayDiff, 20, (VID_WIDTH*VID_HEIGHT)*.6, 1, false);	// find holes
+        if (bLearnBakground == true){
+            grayBg = grayImage;		// the = sign copys the pixels from grayImage into grayBg (operator overloading)
+            bLearnBakground = false;
+        }
+        
+        // take the abs value of the difference between background and incoming and then threshold:
+        grayDiff.absDiff(grayBg, grayImage);
+        grayDiff.threshold(threshold);
+#endif
+        
+        // find contours which are between the size of 20 pixels and 1/3 the w*h pixels.
+        // also, find holes is set to true so we will get interior contours as well....
+        contourFinder.findContours(grayDiff, 20, (VID_WIDTH*VID_HEIGHT)*.6, 1, false);	// find holes
         
         //calculate features
         for (int i = 0; i < contourFinder.nBlobs; i++){
@@ -188,33 +203,39 @@ void ofApp::update(){
             //predictionPlot.update( pipeline.getClassLikelihoods() );
         }
         
-	}
-
+    }
+    
 }
 
 //--------------------------------------------------------------
 void ofApp::draw(){
-
-	// draw the incoming, the grayscale, the bg and the thresholded difference
-	ofSetHexColor(0xffffff);
-	colorImg.draw(VID_SPACE,VID_SPACE);
-	grayImage.draw(VID_SPACE*2+VID_WIDTH,VID_SPACE);
-	grayBg.draw(VID_SPACE*3+VID_WIDTH*2,20);
-	grayDiff.draw(VID_SPACE*4+VID_WIDTH*3,20);
-
-	// then draw the contours:
-
-	ofFill();
-	ofSetHexColor(0x333333);
-	ofDrawRectangle(VID_SPACE*5+VID_WIDTH*4,VID_SPACE,VID_WIDTH,VID_HEIGHT);
-	ofSetHexColor(0xffffff);
-
+    
+    // draw the incoming, the grayscale, the bg and the thresholded difference
+#ifdef _USE_PER_PIXEL_SEGMENTATION
+    ofSetHexColor(0xffffff);
+    colorImg.draw(VID_SPACE,VID_SPACE);
+    grayDiff.draw(VID_SPACE*2+VID_WIDTH,20);
+#else
+    ofSetHexColor(0xffffff);
+    colorImg.draw(VID_SPACE,VID_SPACE);
+    grayImage.draw(VID_SPACE*2+VID_WIDTH,VID_SPACE);
+    grayBg.draw(VID_SPACE*3+VID_WIDTH*2,20);
+    grayDiff.draw(VID_SPACE*4+VID_WIDTH*3,20);
+#endif
+    
+    // then draw the contours:
+    
+    ofFill();
+    ofSetHexColor(0x333333);
+    ofDrawRectangle(VID_SPACE*5+VID_WIDTH*4,VID_SPACE,VID_WIDTH,VID_HEIGHT);
+    ofSetHexColor(0xffffff);
+    
     ofNoFill();
-	// we could draw the whole contour finder
-	//contourFinder.draw(360,540);
-
-	// or, instead we can draw each blob individually from the blobs vector,
-	// this is how to get access to them:
+    // we could draw the whole contour finder
+    //contourFinder.draw(360,540);
+    
+    // or, instead we can draw each blob individually from the blobs vector,
+    // this is how to get access to them:
     for (int i = 0; i < contourFinder.nBlobs; i++){
         
         // draw hull
@@ -223,7 +244,7 @@ void ofApp::draw(){
             ofVertex(VID_SPACE*5+VID_WIDTH*4+hull[i].x,VID_SPACE+hull[i].y);
         }
         ofEndShape();
-
+        
         
         //draw countour and features
         
@@ -241,23 +262,23 @@ void ofApp::draw(){
                            contourFinder.blobs[i].boundingRect.getCenter().x + VID_SPACE*5+VID_WIDTH*4,
                            contourFinder.blobs[i].boundingRect.getCenter().y + VID_SPACE + 20);
         
-    
-		// draw over the centroid if the blob is a hole
-		ofSetColor(255);
         
-		if(contourFinder.blobs[i].hole){
-			ofDrawBitmapString("hole",
-				contourFinder.blobs[i].boundingRect.getCenter().x + VID_SPACE*5+VID_WIDTH*4,
-				contourFinder.blobs[i].boundingRect.getCenter().y + VID_SPACE);
-		}
-      
+        // draw over the centroid if the blob is a hole
+        ofSetColor(255);
         
-       
+        if(contourFinder.blobs[i].hole){
+            ofDrawBitmapString("hole",
+                               contourFinder.blobs[i].boundingRect.getCenter().x + VID_SPACE*5+VID_WIDTH*4,
+                               contourFinder.blobs[i].boundingRect.getCenter().y + VID_SPACE);
+        }
+        
+        
+        
         
         
     }
-
-		
+    
+    
     
     ofSetColor(255);
     // for GRT
@@ -273,7 +294,7 @@ void ofApp::draw(){
         infoText="GRT record " + ofToString(trainingClassLabel)+ ": " + featureStr;
         
     }
-        
+    
     
     //If the model has been trained, then draw the texture
     if( pipeline.getTrained() ){
@@ -298,19 +319,19 @@ void ofApp::draw(){
 
 //--------------------------------------------------------------
 void ofApp::keyPressed(int key){
-
-	switch (key){
-		case ' ':
-			bLearnBakground = true;
-			break;
-		case '+':
-			threshold ++;
-			if (threshold > 255) threshold = 255;
-			break;
-		case '-':
-			threshold --;
-			if (threshold < 0) threshold = 0;
-			break;
+    
+    switch (key){
+        case ' ':
+            bLearnBakground = true;
+            break;
+        case '+':
+            threshold ++;
+            if (threshold > 255) threshold = 255;
+            break;
+        case '-':
+            threshold --;
+            if (threshold < 0) threshold = 0;
+            break;
         case 'r':
             wekinatorControl(1,0);
             break;
@@ -328,28 +349,28 @@ void ofApp::keyPressed(int key){
             trainingClassLabel = 2;
             wekinatorControl(2,trainingClassLabel);
             wekinatorControl(1,0);
-
+            
             record = true;
             break;
         case '3':
             trainingClassLabel = 3;
             wekinatorControl(2,trainingClassLabel);
             wekinatorControl(1,0);
-
+            
             record = true;
             break;
         case '4':
             trainingClassLabel = 4;
             wekinatorControl(2,trainingClassLabel);
             wekinatorControl(1,0);
-
+            
             record = true;
             break;
         case '5':
             trainingClassLabel = 5;
             wekinatorControl(2,trainingClassLabel);
             wekinatorControl(1,0);
-
+            
             record = true;
             break;
             
@@ -371,7 +392,7 @@ void ofApp::keyPressed(int key){
             pipeline.setClassifier( GRT::SVM(GRT::SVM::RBF_KERNEL) );
             infoText = "Training data cleared";
             break;
-	}
+    }
 }
 
 //--------------------------------------------------------------
@@ -398,50 +419,50 @@ void ofApp::keyReleased(int key){
             wekinatorControl(0,0);;
             break;
     }
-
+    
 }
 
 //--------------------------------------------------------------
 void ofApp::mouseMoved(int x, int y ){
-
+    
 }
 
 //--------------------------------------------------------------
 void ofApp::mouseDragged(int x, int y, int button){
-
+    
 }
 
 //--------------------------------------------------------------
 void ofApp::mousePressed(int x, int y, int button){
-
+    
 }
 
 //--------------------------------------------------------------
 void ofApp::mouseReleased(int x, int y, int button){
-
+    
 }
 
 //--------------------------------------------------------------
 void ofApp::mouseEntered(int x, int y){
-
+    
 }
 
 //--------------------------------------------------------------
 void ofApp::mouseExited(int x, int y){
-
+    
 }
 
 //--------------------------------------------------------------
 void ofApp::windowResized(int w, int h){
-
+    
 }
 
 //--------------------------------------------------------------
 void ofApp::gotMessage(ofMessage msg){
-
+    
 }
 
 //--------------------------------------------------------------
 void ofApp::dragEvent(ofDragInfo dragInfo){ 
-
+    
 }

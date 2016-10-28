@@ -5,3 +5,4 @@ ofxGui
 ofxJSON
 ofxOpenCv
 ofxOsc
+ofxPerPixelSegment
