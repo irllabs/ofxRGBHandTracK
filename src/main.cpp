@@ -4,7 +4,7 @@
 //========================================================================
 int main( ){
 #ifdef _USE_PER_PIXEL_SEGMENTATION
-	ofSetupOpenGL(800,400,OF_WINDOW);			// <-------- setup the GL context
+	ofSetupOpenGL(1720,400,OF_WINDOW);			// <-------- setup the GL context
 #else
     ofSetupOpenGL(1720,400,OF_WINDOW);			// <-------- setup the GL context
 #endif
