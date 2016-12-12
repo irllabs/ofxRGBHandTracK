@@ -6,6 +6,8 @@ using namespace cv;
 //State that we want to use the GRT namespace
 using namespace GRT;
 
+ofstream ftPosFile("fingerPos.txt");
+
 //--------------------------------------------------------------
 void ofApp::setup(){
     
@@ -13,9 +15,9 @@ void ofApp::setup(){
     vidGrabber.setVerbose(true);
     vidGrabber.setup(VID_WIDTH,VID_HEIGHT);
 #else
-    vidPlayer.load("fingers.mov");
+    vidPlayer.load("hand.mp4");
     vidPlayer.play();
-    vidPlayer.setLoopState(OF_LOOP_NORMAL);
+    vidPlayer.setLoopState(OF_LOOP_NONE);
 #endif
     
 #ifdef _USE_PER_PIXEL_SEGMENTATION
@@ -25,7 +27,6 @@ void ofApp::setup(){
     //for GUI
     gui.setup();
     gui.add(threshold.set("Threshold ", 10, 0, 255));
-    
     
     
     //for OSC: open an outgoing connection to HOST:PORT
@@ -162,6 +163,7 @@ void ofApp::update(){
         // also, find holes is set to true so we will get interior contours as well....
         contourFinder.findContours(grayDiff, 20, (VID_WIDTH*VID_HEIGHT)*.6, 1, false);	// find holes
         
+        
         //calculate features
         for (int i = 0; i < contourFinder.nBlobs; i++){
             hull = convexHull.getConvexHull(contourFinder.blobs[i].pts);
@@ -249,6 +251,68 @@ void ofApp::draw(){
         //draw countour and features
         
         contourFinder.blobs[i].draw(VID_SPACE*5+VID_WIDTH*4,VID_SPACE);
+        
+        //Sort the points in the hull by y-coordinate to get the finger tips
+        struct myClass {
+            bool operator() (ofPoint pt1, ofPoint pt2) {return (pt1.y < pt2.y);}
+        } myObject;
+        
+        sort(hull.begin(), hull.end(), myObject);
+        
+        
+        //Draw circles on the contour for the fingertips, and store the fingertip positions in the text file
+        ofSetColor(0, 0, 255);
+        ofFill();
+        int numFingers = 5;
+        int count = 0;
+        float prevX = 0;
+        float prevY = 0;
+        for (int m=0; m < 15; m++) {
+            if (abs(hull[m].x - prevX) > 10 && abs(hull[m].y - prevY)) {
+                //TODO: Never draw circle if coordinate is below the center of mass
+                ofDrawCircle(VID_SPACE*5+VID_WIDTH*4+hull[m].x, VID_SPACE+hull[m].y, 5);
+                cout << "The x coordinate is: " << VID_SPACE*5+VID_WIDTH*4+hull[m].x << endl;
+                cout << "The y coordinate is: " << VID_SPACE+hull[m].y << endl;
+                if (ftPosFile.is_open()) {
+                    ftPosFile << VID_SPACE*5+VID_WIDTH*4+hull[m].x;
+                    ftPosFile << ",";
+                    ftPosFile << VID_SPACE+hull[m].y << endl;
+                }
+                count++;
+            }
+            if (count == numFingers) {
+                break;
+            }
+            prevX = hull[m].x;
+            prevY = hull[m].y;
+        }
+        
+        //ftPosFile.close();  //close the file
+        
+        
+        //Find the approximate center of the palm
+        ofPoint hullCenter;
+        hullCenter.x = 0;
+        hullCenter.y = 0;
+        for (int m=0; m < hull.size(); m++) {
+            hullCenter.x += hull[m].x;
+            hullCenter.y += hull[m].y;
+        }
+        
+        hullCenter.x /= hull.size();
+        hullCenter.y /= hull.size();
+        
+        //Draw a circle for the center of the palm
+        ofSetColor(255, 0, 0);
+        ofFill();
+        ofDrawCircle(VID_SPACE*5+VID_WIDTH*4+hullCenter.x, VID_SPACE+hullCenter.y, 3);
+        
+        //Calculate the distance from center of palm to the five fingertips
+        float first = hullCenter.distance(hull[0]);
+        float second = hullCenter.distance(hull[1]);
+        float third = hullCenter.distance(hull[2]);
+        float fourth = hullCenter.distance(hull[3]);
+        float fifth = hullCenter.distance(hull[4]);
         
         ofDrawBitmapString("A: "+ofToString(area),
                            contourFinder.blobs[i].boundingRect.getCenter().x + VID_SPACE*5+VID_WIDTH*4,
